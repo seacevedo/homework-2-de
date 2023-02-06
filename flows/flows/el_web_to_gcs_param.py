@@ -29,7 +29,7 @@ def clean(df: pd.DataFrame) -> pd.DataFrame:
 @task()
 def write_local(df: pd.DataFrame, color: str, dataset_file: str) -> Path:
     """Write DataFrame out locally as parquet file"""
-    path = Path(f"/home/user/data/{color}/{dataset_file}.parquet")
+    path = Path(f"data/{color}/{dataset_file}.parquet")
     df.to_parquet(path, compression="gzip")
     return path
 
@@ -38,16 +38,13 @@ def write_local(df: pd.DataFrame, color: str, dataset_file: str) -> Path:
 def write_gcs(path: Path) -> None:
     """Upload local parquet file to GCS"""
     gcs_block = GcsBucket.load("zoom-gcs")
-    gcs_block.upload_from_path(from_path=path, to_path="data/yellow/green_tripdata_2020-01.parquet")
+    gcs_block.upload_from_path(from_path=path, to_path=path)
     return
 
 
 @flow()
-def etl_web_to_gcs() -> None:
+def etl_web_to_gcs(year: int, month: int, color: str) -> None:
     """The main ETL function"""
-    color = "green"
-    year = 2020
-    month = 1
     dataset_file = f"{color}_tripdata_{year}-{month:02}"
     dataset_url = f"https://github.com/DataTalksClub/nyc-tlc-data/releases/download/{color}/{dataset_file}.csv.gz"
 
@@ -56,6 +53,15 @@ def etl_web_to_gcs() -> None:
     path = write_local(df_clean, color, dataset_file)
     write_gcs(path)
 
+@flow()
+def el_parent_flow(
+    months: list[int] = [1, 2], year: int = 2021, color: str = "yellow"
+):
+    for month in months:
+        etl_web_to_gcs(year, month, color)
 
 if __name__ == "__main__":
-    etl_web_to_gcs()
+    color = "yellow"
+    months = [1, 2, 3]
+    year = 2021
+    etl_web_to_gcs(months, year, color)
